@@ -46,10 +46,15 @@ export async function getProducts(): Promise<Product[]> {
   try {
     const sb = getSupabasePublic();
     if (!sb) return PRODUCTS;
-    const { data, error } = await sb.from('products').select('*').order('created_at', { ascending: true });
+    const { data, error } = await sb
+      .from('products')
+      .select('*')
+      .abortSignal(AbortSignal.timeout(5000))
+      .order('created_at', { ascending: true });
     if (error || !data?.length) return PRODUCTS;
     return data.map(mapProduct);
   } catch {
+    // Network blocked/slow at build time — fall back to local catalogue.
     return PRODUCTS;
   }
 }
@@ -59,7 +64,12 @@ export async function getProductBySlug(slug: string): Promise<Product | undefine
   try {
     const sb = getSupabasePublic();
     if (!sb) return PRODUCTS.find((p) => p.slug === slug);
-    const { data, error } = await sb.from('products').select('*').eq('slug', slug).maybeSingle();
+    const { data, error } = await sb
+      .from('products')
+      .select('*')
+      .abortSignal(AbortSignal.timeout(5000))
+      .eq('slug', slug)
+      .maybeSingle();
     if (error || !data) return PRODUCTS.find((p) => p.slug === slug);
     return mapProduct(data);
   } catch {
