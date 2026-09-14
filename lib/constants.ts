@@ -6,16 +6,16 @@ export const SITE = {
   tagline: 'Your Jersey. Your Style.',
   description:
     'MyJerseyPlug is a premium Nigerian jersey store for authentic football jerseys and fully customizable kits — designed, personalized and delivered across Nigeria.',
-  email: 'hello@myjerseyplug.ng',
-  phone: '+234 801 234 5678',
-  whatsapp: 'https://wa.me/2348012345678',
-  instagram: 'https://instagram.com/myjerseyplug',
-  address: 'Lagos, Nigeria',
+  email: 'tbabashekoni@gmail.com',
+  phone: '+234 704 084 1103',
+  whatsapp: 'https://wa.me/2347040841103',
+  instagram: 'https://instagram.com/myjerseyplug_ng',
+  address: 'Lagos & Ogun, Nigeria',
   // Bank-transfer details shown at checkout (no payment gateway).
   bank: {
-    bankName: 'Zenith Bank',
-    accountName: 'MyJerseyPlug Ltd',
-    accountNumber: '1012345678',
+    bankName: 'Palmpay',
+    accountName: 'BABATUNDE NOAH SHEKONI',
+    accountNumber: '7040841103',
   },
 };
 
