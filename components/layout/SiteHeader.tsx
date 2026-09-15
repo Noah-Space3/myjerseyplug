@@ -118,9 +118,6 @@ export function SiteHeader() {
           >
             <SearchIcon className="h-5 w-5" />
           </button>
-          <Link href="/admin" className="hidden px-3 py-2 text-small font-semibold text-ink/70 hover:text-ink sm:block">
-            Admin
-          </Link>
           <Link href="/account" className="btn-ghost px-2" aria-label="Account">
             <UserIcon className="h-5 w-5" />
           </Link>
@@ -189,12 +186,9 @@ export function SiteHeader() {
                     {item.label}
                   </Link>
                 ))}
-                <Link href="/account" className="block rounded-md px-3 py-2.5 text-small font-medium text-ink hover:bg-paper-2">
-                  My Account
-                </Link>
-                <Link href="/admin" className="block rounded-md px-3 py-2.5 text-small font-semibold text-ink hover:bg-paper-2">
-                  Admin
-                </Link>
+                  <Link href="/account" className="block rounded-md px-3 py-2.5 text-small font-medium text-ink hover:bg-paper-2">
+                    My Account
+                  </Link>
               </div>
 
               <div className="my-3 border-t border-line" />

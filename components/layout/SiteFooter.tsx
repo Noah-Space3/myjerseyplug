@@ -30,7 +30,6 @@ export function SiteFooter() {
             <li><Link href="/about" className="text-paper-warm/80 hover:text-white">About</Link></li>
             <li><Link href="/account" className="text-paper-warm/80 hover:text-white">My Account</Link></li>
             <li><Link href="/shop?view=collections" className="text-paper-warm/80 hover:text-white">Collections</Link></li>
-            <li><Link href="/admin" className="text-paper-warm/80 hover:text-white">Admin</Link></li>
             <li><a href={SITE.whatsapp} className="text-paper-warm/80 hover:text-white">WhatsApp</a></li>
           </ul>
         </div>

@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/Button';
 import { ArrowRight } from '@/components/ui/icons';
 import type { Order, Product, SizeTop } from '@/lib/types';
 
-const ADMIN_CODE = 'admin';
 type Tab = 'overview' | 'products' | 'pricing' | 'delivery' | 'orders' | 'customers';
 
 const TABS: { value: Tab; label: string }[] = [
@@ -28,17 +27,13 @@ const TABS: { value: Tab; label: string }[] = [
 export function AdminApp() {
   const sb = getSupabaseBrowser();
   const catalog = useCatalog();
-  const [demoUnlocked, setDemoUnlocked] = useState(false);
   const [session, setSession] = useState<{ user?: { email?: string } } | null | undefined>(undefined);
   const [role, setRole] = useState<string | null>(null);
-  const [code, setCode] = useState('');
-  const [codeError, setCodeError] = useState('');
   const [tab, setTab] = useState<Tab>('overview');
 
   useEffect(() => {
     if (!sb) {
       setSession(null);
-      if (typeof window !== 'undefined' && sessionStorage.getItem('mjp_admin') === '1') setDemoUnlocked(true);
       return;
     }
     sb.auth.getSession().then(({ data }) => {
@@ -50,15 +45,6 @@ export function AdminApp() {
       sb.from('profiles').select('role').eq('id', data.session!.user.id).maybeSingle().then(({ data: r }) => setRole(r?.role ?? null));
     });
   }, [sb]);
-
-  function unlock() {
-    if (code === ADMIN_CODE) {
-      sessionStorage.setItem('mjp_admin', '1');
-      setDemoUnlocked(true);
-    } else {
-      setCodeError('Incorrect code.');
-    }
-  }
 
   // ---- Gate ----
   if (sb && session === undefined) {
@@ -82,25 +68,13 @@ export function AdminApp() {
       </div>
     );
   }
-  if (!sb && !demoUnlocked) {
+  if (!sb) {
     return (
       <div className="shell flex min-h-[70vh] items-center justify-center py-16">
         <div className="w-full max-w-sm rounded-lg border border-line bg-white p-8 text-center">
           <Logo />
           <h1 className="mt-4 text-h3 text-ink">MyJerseyPlug Admin</h1>
-          <p className="mt-1 text-small text-ink-muted">Enter the demo passcode to continue.</p>
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && unlock()}
-            type="password"
-            placeholder="Passcode"
-            className="input mt-5 text-center"
-            aria-label="Admin passcode"
-          />
-          {codeError && <p className="mt-2 text-small text-danger">{codeError}</p>}
-          <Button onClick={unlock} fullWidth className="mt-4">Unlock</Button>
-          <p className="mt-3 text-[11px] text-ink-muted">Demo code: <span className="font-mono">admin</span> · not real authentication.</p>
+          <p className="mt-1 text-small text-ink-muted">Supabase is not configured. Set the environment variables to enable admin access.</p>
           <Link href="/" className="mt-3 inline-block text-small text-accent-dark hover:underline">Back to store</Link>
         </div>
       </div>
@@ -190,12 +164,6 @@ function OverviewTab({ adminMode }: { adminMode: boolean }) {
         <StatCard label="Orders" value={String(orders.length)} />
         <StatCard label="Revenue" value={formatNGN(revenue)} />
       </div>
-      {!adminMode && (
-        <div className="mt-6 rounded-lg border border-line bg-paper-2 p-5 text-small text-ink-muted">
-          <p className="font-semibold text-ink">Demo mode</p>
-          <p className="mt-1">Supabase is not configured, so product, pricing and delivery changes persist in this browser only. Connect Supabase to make them server-side and shared.</p>
-        </div>
-      )}
     </div>
   );
 }

@@ -35,9 +35,7 @@ export function AccountView() {
 
   useEffect(() => {
     if (!sb) {
-      // No Supabase configured → localStorage demo.
       setMode('guest');
-      loadLocalDemo();
       return;
     }
     sb.auth.getSession().then(({ data }) => {
@@ -76,19 +74,6 @@ export function AccountView() {
   async function loadOrders(mail: string) {
     const all = await getMyOrders(mail);
     setOrders(all);
-  }
-
-  function loadLocalDemo() {
-    try {
-      const a = localStorage.getItem('mjp_account');
-      if (a) setProfileName(JSON.parse(a).email);
-      const ad = localStorage.getItem('mjp_addresses');
-      if (ad) setAddresses(JSON.parse(ad));
-      const mail = a ? JSON.parse(a).email : '';
-      if (mail) loadOrders(mail);
-    } catch {
-      /* ignore */
-    }
   }
 
   async function submitAuth(e: React.FormEvent) {
@@ -134,7 +119,7 @@ export function AccountView() {
                 {authMode === 'signup' ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
               </button>
             ) : (
-              'Demo account — stored locally on this device.'
+              'Sign-in is unavailable — Supabase is not configured.'
             )}
           </p>
         </form>
