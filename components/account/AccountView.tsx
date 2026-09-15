@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { getSupabaseBrowser } from '@/lib/supabase/client';
 import { getMyOrders } from '@/lib/supabase/client-data';
 import { formatNGN } from '@/lib/format';
@@ -19,6 +20,7 @@ interface Address {
 
 export function AccountView() {
   const sb = getSupabaseBrowser();
+  const router = useRouter();
   const [mode, setMode] = useState<'loading' | 'guest' | 'auth'>('loading');
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -78,13 +80,45 @@ export function AccountView() {
 
   async function submitAuth(e: React.FormEvent) {
     e.preventDefault();
-    if (!sb) return;
+    if (!sb) {
+      setAuthError('Sign-in is unavailable — Supabase is not configured.');
+      return;
+    }
     setBusy(true);
     setAuthError('');
-    const fn = authMode === 'signup' ? sb.auth.signUp : sb.auth.signInWithPassword;
-    const { error } = await fn({ email, password });
-    if (error) setAuthError(error.message);
-    setBusy(false);
+    try {
+      const fn = authMode === 'signup' ? sb.auth.signUp : sb.auth.signInWithPassword;
+      const { data, error } = await fn({ email, password });
+      if (error) {
+        setAuthError(error.message);
+        return;
+      }
+      // Supabase may return a user without a session when email confirmation is required.
+      if (authMode === 'signup' && !data.session) {
+        setAuthError('Account created. Check your email to confirm your address, then sign in.');
+        return;
+      }
+      // Resolve the session explicitly so the UI updates even if the
+      // onAuthStateChange listener is slow or has been torn down.
+      const { data: sess } = await sb.auth.getSession();
+      const user = sess.session?.user;
+      if (!user) return;
+      setUserId(user.id);
+      setMode('auth');
+      loadProfile(user.id, user.email ?? '');
+      loadOrders(user.email ?? '');
+      // Admin users land on the admin dashboard.
+      const { data: prof } = await sb
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (prof?.role === 'admin') router.push('/admin');
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Unable to connect to the authentication service.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function signOut() {

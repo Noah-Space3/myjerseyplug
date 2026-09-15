@@ -51,7 +51,8 @@ export function SiteHeader() {
   const isShop = pathname.startsWith('/shop') || pathname.startsWith('/product');
 
   return (
-    <header className="sticky top-0 z-[60] border-b border-line bg-paper-warm/90 backdrop-blur-md">
+    <>
+      <header className="sticky top-0 z-[60] border-b border-line bg-paper-warm/90 backdrop-blur-md">
       <div className="shell flex h-16 items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <button
@@ -156,7 +157,10 @@ export function SiteHeader() {
         </div>
       )}
 
-      {/* Mobile drawer */}
+      </header>
+      {/* Mobile drawer — sibling of <header>, not a child, so the header's
+          backdrop-filter cannot become its containing block (which collapsed
+          the fixed overlay into the 64px header strip). */}
       {mobileOpen && (
         <div className="fixed inset-0 z-[70] lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
           <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
@@ -200,6 +204,6 @@ export function SiteHeader() {
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 }
