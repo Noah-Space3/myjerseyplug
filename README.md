@@ -1,9 +1,7 @@
 # MyJerseyPlug — Production-Quality Jersey E-commerce
 
-A premium, mobile-first jersey store for the Nigerian market, built from the Master Website
-Build Prompt. Stack: **Next.js 14 (App Router) + TypeScript + Tailwind** (image-based customizer,
-no 3D engine).
-
+A premium, mobile-first jersey store for the Nigerian market. 
+Stack: **Next.js 14 (App Router) + TypeScript + Tailwind**
 ## Run it
 
 ```bash
@@ -12,7 +10,7 @@ npm run dev      # http://localhost:3000
 npm run build    # production build (passes, 23 routes)
 ```
 
-## What's implemented (mapped to the prompt)
+## What's implemented 
 
 - **Design system** — restrained tokens (ink/paper/accent green), display+body type scale,
   spacing, buttons, cards, inputs, focus states, reduced-motion support (`app/globals.css`,
