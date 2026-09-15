@@ -121,6 +121,31 @@ export function AccountView() {
     }
   }
 
+  async function signInWithGoogle() {
+    if (!sb) {
+      setAuthError('Sign-in is unavailable — Supabase is not configured.');
+      return;
+    }
+    setBusy(true);
+    setAuthError('');
+    try {
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        // Works for both login and signup: a new Google email creates an account
+        // (our handle_new_user trigger adds a profiles row with role='customer').
+        options: { redirectTo: window.location.origin + '/account' },
+      });
+      if (error) {
+        setAuthError(error.message);
+        setBusy(false);
+      }
+      // On success the browser navigates to Google; the component unmounts.
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Unable to connect to Google.');
+      setBusy(false);
+    }
+  }
+
   async function signOut() {
     if (sb) await sb.auth.signOut();
     setUserId(null);
@@ -147,6 +172,24 @@ export function AccountView() {
           </div>
           {authError && <p className="text-small text-danger">{authError}</p>}
           <Button type="submit" fullWidth disabled={busy}>{busy ? 'Please wait…' : authMode === 'signup' ? 'Create account' : 'Sign in'}</Button>
+          <div className="relative my-1">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-line" /></div>
+            <div className="relative flex justify-center"><span className="bg-white px-2 text-[11px] text-ink-muted">or</span></div>
+          </div>
+          <button
+            type="button"
+            onClick={signInWithGoogle}
+            disabled={busy}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 py-2.5 text-small font-medium text-ink transition-colors hover:bg-paper-2"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.61l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6.01C43.68 39.1 46.98 33.85 46.98 24.55z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6.01c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            Continue with Google
+          </button>
           <p className="text-center text-[11px] text-ink-muted">
             {sb ? (
               <button type="button" className="underline" onClick={() => setAuthMode(authMode === 'signup' ? 'signin' : 'signup')}>
