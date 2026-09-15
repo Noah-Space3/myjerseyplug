@@ -20,7 +20,12 @@ create policy "profiles readable by owner" on public.profiles
 
 drop policy if exists "profiles writable by owner" on public.profiles;
 create policy "profiles writable by owner" on public.profiles
-  for update using (auth.uid() = id) with check (auth.uid() = id);
+  for update using (auth.uid() = id)
+  with check (
+    auth.uid() = id
+    -- Prevent self role escalation: the role column must stay unchanged on self-update.
+    and role = (select role from public.profiles where id = auth.uid())
+  );
 
 drop policy if exists "profiles admin full" on public.profiles;
 create policy "profiles admin full" on public.profiles
