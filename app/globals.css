@@ -107,3 +107,41 @@
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   .text-balance { text-wrap: balance; }
 }
+
+/* Minimal dark-mode foundation (toggle in the profile menu). The theme is applied
+   via the `dark` class on <html>; these rules restyle the main surfaces so the
+   toggle has a visible, on-brand effect without redesigning every component. */
+html.dark {
+  color-scheme: dark;
+}
+html.dark body {
+  @apply bg-ink text-paper-2;
+}
+html.dark header,
+html.dark .bg-paper-warm {
+  background-color: #121512;
+}
+html.dark .bg-paper-warm\/90 {
+  background-color: rgba(18, 21, 18, 0.9);
+}
+html.dark .bg-white {
+  background-color: #171a17;
+}
+html.dark .bg-paper-2 {
+  background-color: #1f231f;
+}
+html.dark .bg-paper-3 {
+  background-color: #262b26;
+}
+html.dark .border-line {
+  border-color: #2a2f2a;
+}
+html.dark .text-ink {
+  color: #e8eae6;
+}
+html.dark .text-ink-muted {
+  color: #9aa39a;
+}
+html.dark .shadow-lift {
+  box-shadow: 0 12px 40px -16px rgba(0, 0, 0, 0.6);
+}

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { Inter, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 import { CartProvider } from '@/components/cart/CartProvider';
@@ -7,6 +8,8 @@ import { SiteHeader } from '@/components/layout/SiteHeader';
 import { SiteFooter } from '@/components/layout/SiteFooter';
 import { SITE } from '@/lib/constants';
 import { DevtoolsGuard } from '@/components/layout/DevtoolsGuard';
+
+const themeInit = `(function(){try{var t=localStorage.getItem('mjp-theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 const display = Space_Grotesk({
   subsets: ['latin'],
@@ -57,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${display.variable} ${body.variable}`}>
       <body>
+        <Script id="theme-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: themeInit }} />
         <DevtoolsGuard />
         <a
           href="#main"

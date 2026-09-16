@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { getSupabaseBrowser } from '@/lib/supabase/client';
 import { getMyOrders } from '@/lib/supabase/client-data';
 import { formatNGN } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/States';
 import type { Order } from '@/lib/types';
+
+// Football-themed avatar assets (stored as profile.avatar_id).
+const AVATARS = ['football-01', 'football-02', 'football-03', 'football-04', 'football-05'];
 
 interface Address {
   id: string;
@@ -18,9 +21,12 @@ interface Address {
   state: string;
 }
 
+type SessionLike = { user?: { id: string; email?: string } } | null;
+
 export function AccountView() {
   const sb = getSupabaseBrowser();
   const router = useRouter();
+  const pathname = usePathname();
   const [mode, setMode] = useState<'loading' | 'guest' | 'auth'>('loading');
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -28,37 +34,49 @@ export function AccountView() {
   const [authError, setAuthError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Supabase mode
+  // Profile state
   const [userId, setUserId] = useState<string | null>(null);
   const [profileName, setProfileName] = useState('');
   const [phone, setPhone] = useState('');
+  const [avatarId, setAvatarId] = useState('');
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+
+  // Profile save state
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [saveOk, setSaveOk] = useState(false);
+
+  // Centralized session handling. Invoked on initial load AND on every auth-state
+  // change, so the role-based /admin redirect works for BOTH email/password and
+  // Google (OAuth does not run through submitAuth's success path).
+  async function handleUser(session: SessionLike) {
+    if (!sb) return;
+    const user = session?.user;
+    if (!user) {
+      setUserId(null);
+      setMode('guest');
+      return;
+    }
+    setUserId(user.id);
+    setMode('auth');
+    loadProfile(user.id, user.email ?? '');
+    loadOrders(user.email ?? '');
+    // Role lookup cannot silently return undefined and treat an admin as a customer:
+    // if the row is missing we treat role as non-admin (safe default) rather than
+    // guessing. RLS also protects every data mutation regardless.
+    const { data: prof } = await sb.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    if (prof?.role === 'admin' && pathname !== '/admin') router.push('/admin');
+  }
 
   useEffect(() => {
     if (!sb) {
       setMode('guest');
       return;
     }
-    sb.auth.getSession().then(({ data }) => {
-      if (data.session?.user) {
-        setUserId(data.session.user.id);
-        setMode('auth');
-        loadProfile(data.session.user.id, data.session.user.email ?? '');
-        loadOrders(data.session.user.email ?? '');
-      } else {
-        setMode('guest');
-      }
-    });
+    sb.auth.getSession().then(({ data }) => handleUser(data.session));
     const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
-      if (session?.user) {
-        setUserId(session.user.id);
-        setMode('auth');
-        loadProfile(session.user.id, session.user.email ?? '');
-        loadOrders(session.user.email ?? '');
-      } else {
-        setMode('guest');
-      }
+      handleUser(session);
     });
     return () => sub.subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -66,9 +84,14 @@ export function AccountView() {
 
   async function loadProfile(uid: string, mail: string) {
     if (!sb) return;
-    const { data } = await sb.from('profiles').select('full_name, phone').eq('id', uid).maybeSingle();
+    const { data } = await sb
+      .from('profiles')
+      .select('full_name, phone, avatar_id')
+      .eq('id', uid)
+      .maybeSingle();
     setProfileName(data?.full_name ?? '');
     setPhone(data?.phone ?? '');
+    setAvatarId(data?.avatar_id ?? '');
     const { data: addr } = await sb.from('addresses').select('*').eq('user_id', uid);
     setAddresses((addr ?? []) as Address[]);
   }
@@ -98,22 +121,7 @@ export function AccountView() {
         setAuthError('Account created. Check your email to confirm your address, then sign in.');
         return;
       }
-      // Resolve the session explicitly so the UI updates even if the
-      // onAuthStateChange listener is slow or has been torn down.
-      const { data: sess } = await sb.auth.getSession();
-      const user = sess.session?.user;
-      if (!user) return;
-      setUserId(user.id);
-      setMode('auth');
-      loadProfile(user.id, user.email ?? '');
-      loadOrders(user.email ?? '');
-      // Admin users land on the admin dashboard.
-      const { data: prof } = await sb
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (prof?.role === 'admin') router.push('/admin');
+      // onAuthStateChange -> handleUser flips mode and redirects admins to /admin.
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Unable to connect to the authentication service.');
     } finally {
@@ -131,8 +139,6 @@ export function AccountView() {
     try {
       const { error } = await sb.auth.signInWithOAuth({
         provider: 'google',
-        // Works for both login and signup: a new Google email creates an account
-        // (our handle_new_user trigger adds a profiles row with role='customer').
         options: { redirectTo: window.location.origin + '/account' },
       });
       if (error) {
@@ -152,8 +158,26 @@ export function AccountView() {
     setMode('guest');
   }
 
+  async function saveProfile() {
+    if (!sb || !userId) return;
+    setSaving(true);
+    setSaveError('');
+    setSaveOk(false);
+    const { error } = await sb
+      .from('profiles')
+      .update({ full_name: profileName, phone, avatar_id: avatarId || null })
+      .eq('id', userId);
+    setSaving(false);
+    if (error) setSaveError(error.message);
+    else setSaveOk(true);
+  }
+
   if (mode === 'loading') {
-    return <div className="shell max-w-md py-16"><div className="h-40 animate-pulse rounded-lg bg-paper-3" /></div>;
+    return (
+      <div className="shell max-w-md py-16">
+        <div className="h-40 animate-pulse rounded-lg bg-paper-3" />
+      </div>
+    );
   }
 
   if (mode === 'guest') {
@@ -164,17 +188,37 @@ export function AccountView() {
         <form onSubmit={submitAuth} className="mt-6 space-y-4 rounded-lg border border-line bg-white p-5">
           <div>
             <label className="label">Email</label>
-            <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" required />
+            <input
+              className="input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@email.com"
+              required
+            />
           </div>
           <div>
             <label className="label">Password</label>
-            <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+            <input
+              className="input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+            />
           </div>
           {authError && <p className="text-small text-danger">{authError}</p>}
-          <Button type="submit" fullWidth disabled={busy}>{busy ? 'Please wait…' : authMode === 'signup' ? 'Create account' : 'Sign in'}</Button>
+          <Button type="submit" fullWidth disabled={busy}>
+            {busy ? 'Please wait…' : authMode === 'signup' ? 'Create account' : 'Sign in'}
+          </Button>
           <div className="relative my-1">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-line" /></div>
-            <div className="relative flex justify-center"><span className="bg-white px-2 text-[11px] text-ink-muted">or</span></div>
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-line" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-white px-2 text-[11px] text-ink-muted">or</span>
+            </div>
           </div>
           <button
             type="button"
@@ -183,16 +227,20 @@ export function AccountView() {
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 py-2.5 text-small font-medium text-ink transition-colors hover:bg-paper-2"
           >
             <svg className="h-5 w-5" viewBox="0 0 48 48" aria-hidden="true">
-              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.61l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6.01C43.68 39.1 46.98 33.85 46.98 24.55z"/>
-              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6.01c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.61l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6.01C43.68 39.1 46.98 33.85 46.98 24.55z" />
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6.01c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
             </svg>
             Continue with Google
           </button>
           <p className="text-center text-[11px] text-ink-muted">
             {sb ? (
-              <button type="button" className="underline" onClick={() => setAuthMode(authMode === 'signup' ? 'signin' : 'signup')}>
+              <button
+                type="button"
+                className="underline"
+                onClick={() => setAuthMode(authMode === 'signup' ? 'signin' : 'signup')}
+              >
                 {authMode === 'signup' ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
               </button>
             ) : (
@@ -211,22 +259,67 @@ export function AccountView() {
         <section className="rounded-lg border border-line bg-white p-5">
           <div className="flex items-center justify-between">
             <h2 className="text-h3 text-ink">Profile</h2>
-            <button onClick={signOut} className="text-small font-semibold text-ink-muted hover:text-danger">Sign out</button>
+            <button onClick={signOut} className="text-small font-semibold text-ink-muted hover:text-danger">
+              Sign out
+            </button>
           </div>
+
+          {/* Avatar picker */}
+          <div className="mt-4">
+            <label className="label">Profile picture</label>
+            <div className="mt-2 flex flex-wrap gap-3">
+              {AVATARS.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setAvatarId(id)}
+                  aria-label={`Select ${id}`}
+                  className={`h-14 w-14 overflow-hidden rounded-full border-2 transition ${
+                    avatarId === id ? 'border-accent ring-2 ring-accent/30' : 'border-line hover:border-ink/30'
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/avatars/${id}.svg`} alt="" className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label">Name</label>
-              <input className="input" value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Your name" />
+              <input
+                className="input"
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+                placeholder="Your name"
+              />
             </div>
             <div>
               <label className="label">Phone</label>
-              <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08012345678" />
+              <input
+                className="input"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="08012345678"
+              />
             </div>
             <div className="sm:col-span-2">
               <label className="label">Email</label>
               <input className="input bg-paper-2" value={email} disabled />
             </div>
           </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <Button onClick={saveProfile} disabled={saving}>
+              {saving ? 'Saving…' : 'Save changes'}
+            </Button>
+            {saveOk && <span className="text-small text-accent-dark">Saved</span>}
+            {saveError && <span className="text-small text-danger">{saveError}</span>}
+          </div>
+          <p className="mt-2 text-[11px] text-ink-muted">
+            You can only edit your own name, phone and avatar — role and security fields are managed by the store.
+          </p>
         </section>
 
         <section className="rounded-lg border border-line bg-white p-5">
@@ -236,7 +329,9 @@ export function AccountView() {
             {addresses.map((a) => (
               <li key={a.id} className="rounded-md border border-line p-3">
                 <p className="text-small font-semibold text-ink">{a.label}</p>
-                <p className="text-small text-ink-muted">{a.line}, {a.city} {a.state}</p>
+                <p className="text-small text-ink-muted">
+                  {a.line}, {a.city} {a.state}
+                </p>
               </li>
             ))}
           </ul>
@@ -247,21 +342,34 @@ export function AccountView() {
         <h2 className="text-h3 text-ink">Orders</h2>
         {orders.length === 0 ? (
           <div className="mt-4">
-            <EmptyState title="No orders yet" description="Your orders will appear here." action={<Button href="/shop">Shop now</Button>} />
+            <EmptyState
+              title="No orders yet"
+              description="Your orders will appear here."
+              action={<Button href="/shop">Shop now</Button>}
+            />
           </div>
         ) : (
           <ul className="mt-4 space-y-3">
             {orders.map((o) => (
               <li key={o.id}>
-                <Link href={`/order/${o.id}`} className="block rounded-lg border border-line bg-white p-4 hover:border-ink/30">
+                <Link
+                  href={`/order/${o.id}`}
+                  className="block rounded-lg border border-line bg-white p-4 hover:border-ink/30"
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-small font-semibold text-ink">{o.id}</span>
-                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${o.status === 'paid' ? 'bg-accent-soft text-accent-dark' : 'bg-paper-3 text-ink-muted'}`}>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                        o.status === 'paid' ? 'bg-accent-soft text-accent-dark' : 'bg-paper-3 text-ink-muted'
+                      }`}
+                    >
                       {o.status === 'paid' ? 'Paid' : 'Pending'}
                     </span>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-small text-ink-muted">
-                    <span>{o.items.length} item{o.items.length > 1 ? 's' : ''}</span>
+                    <span>
+                      {o.items.length} item{o.items.length > 1 ? 's' : ''}
+                    </span>
                     <span className="font-semibold text-ink">{formatNGN(o.total)}</span>
                   </div>
                 </Link>

@@ -10,6 +10,7 @@ create table if not exists public.profiles (
   full_name  text,
   phone      text,
   role       text not null default 'customer' -- 'customer' | 'admin'
+  avatar_id  text -- selected football avatar, e.g. 'football-01'..'football-05'
 );
 
 alter table public.profiles enable row level security;

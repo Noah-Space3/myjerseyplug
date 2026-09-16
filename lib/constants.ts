@@ -20,6 +20,7 @@ export const SITE = {
 };
 
 export const NAV_DESKTOP = [
+  { label: 'Home', href: '/' },
   { label: 'Shop', href: '/shop' },
   { label: 'Customize', href: '/customize' },
   { label: 'Collections', href: '/shop?view=collections' },
